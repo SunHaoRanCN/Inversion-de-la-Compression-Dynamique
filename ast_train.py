@@ -21,21 +21,11 @@ cudnn.benchmark = True
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # 多GPU时
-    torch.backends.cudnn.deterministic = True  # 确保卷积算法确定性
-    torch.backends.cudnn.benchmark = False  # 关闭自动优化（固定计算流程）
-
-    # NumPy
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
-
-    # Python random
     random.seed(seed)
-
-    # 设置DataLoader的随机种子（多进程时）
-    # def _init_fn(worker_id):
-    #     np.random.seed(seed + worker_id)
-    #
-    # return _init_fn
 
 class AudioDataset(Dataset):
     def __init__(self, file_paths, labels, resample=False, target_fs=16000, transform=None):
@@ -61,16 +51,11 @@ class AudioDataset(Dataset):
         target_shape = (64, 431)
         n_fft = 2 * (target_shape[0] - 1)
         hop_length = (total_samples - n_fft) // (target_shape[1] - 1)
-        # mel = librosa.feature.melspectrogram(y=audio, sr=0.5*sr, n_fft=2048, hop_length=128, win_length=2048, n_mels=128)  # 5s audio LibriSpeech
-        # mel = librosa.feature.melspectrogram(y=audio, sr=22050, n_fft=2048, hop_length=205, win_length=2048, n_mels=64)  # 2s audio LibriSpeech
-        # mel = librosa.feature.melspectrogram(y=audio, sr=22050, n_fft=2048, hop_length=512, win_length=2048, n_mels=128)
-        ###stft
-        # mel = librosa.stft(y=audio,n_fft=254, hop_length=512) # (128, 431) 44100
+        
         mel = librosa.stft(y=audio, n_fft=n_fft, hop_length=hop_length)  # (64, 431) 44100
         mel = librosa.amplitude_to_db(np.abs(mel))
 
         mel = mel.T
-        # mel = imageProcess(mel, (154*3, 12*3))
 
         if self.transform:
             mel = self.transform(mel)
@@ -89,10 +74,6 @@ norm_param = 0.001
 audio_folder_path = "/home/hsun/Datasets/LibriSpeech/5profiles"
 train_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_train"
 test_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_test"
-# audio_folder_path = "/home/hsun/Datasets/LibriSpeech/30profiles_RMS"
-# train_folder = "/home/hsun/Datasets/LibriSpeech/30profiles_RMS_train"
-# test_folder = "/home/hsun/Datasets/LibriSpeech/30profiles_RMS_test"
-
 
 def find_paths_labels(folder_path):
     all_files = []
@@ -180,12 +161,6 @@ for epoch in range(n_epochs):
         outputs = model(inputs)
         loss = criterion(outputs, labels)
 
-        # l2_lambda = norm_param
-        # l2_regularization = torch.tensor(0).to(device).to(torch.float32)
-        # for param in model.parameters():
-        #     l2_regularization += torch.norm(param, p=2)
-        # loss += l2_lambda * l2_regularization
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -238,27 +213,25 @@ for epoch in range(n_epochs):
     print(f'Epoch {epoch + 1}/{n_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, '
           f'Train Acc: {train_accuracy:.4f}, Val Acc: {val_accuracy:.4f}')
 
-    # if val_loss <= min_loss_val:
-    #     min_loss_val = val_loss
-    #     best_model = model.state_dict()
-    #     torch.save(best_model, 'pretrained_ast_LibriSpeech_stft_431_128.pt')
+    if val_loss <= min_loss_val:
+        min_loss_val = val_loss
+        best_model = model.state_dict()
+        torch.save(best_model, 'pretrained_ast_LibriSpeech_stft_431_128.pt')
 
-    ### Early stopping check
-    # if early_stop:
-    #     if epoch < 30:
-    #         continue
-    #     else:
-    #         if val_loss < best_val_loss:
-    #             best_val_loss = val_loss
-    #             patience_counter = 0
-    #         else:
-    #             patience_counter += 1
-    #
-    #     if patience_counter >= patience:
-    #         print(f'Early stopping after {epoch + 1} epochs without improvement.')
-    #         break
-
-# torch.save(best_model, 'ast_best_model.pth')
+    ## Early stopping check
+    if early_stop:
+        if epoch < 30:
+            continue
+        else:
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
+    
+        if patience_counter >= patience:
+            print(f'Early stopping after {epoch + 1} epochs without improvement.')
+            break
 
 torch.cuda.synchronize()
 end = time.time()
@@ -315,132 +288,3 @@ best_val_accuracy = max(val_accuracies)
 best_epoch = val_accuracies.index(best_val_accuracy) + 1
 print(f'Best validation accuracy: {best_val_accuracy:.4f} achieved at epoch {best_epoch}')
 print(f'Average training time: {time_per_epoch:.4f} h')
-
-
-#############################################################
-# compressors = {
-#     'A': {'param1': -32, 'param2': 3, 'param3': 5, 'param4': 5, 'param5': 13, 'param6': 435, 'param7': 2},
-#     'B': {'param1': -19.9, 'param2': 1.8, 'param3': 5, 'param4': 5, 'param5': 11, 'param6': 49, 'param7': 2},
-#     'C': {'param1': -24.4, 'param2': 3.2, 'param3': 5, 'param4': 5, 'param5': 5.8, 'param6': 112, 'param7': 2},
-#     'D': {'param1': -28.3, 'param2': 7.3, 'param3': 5, 'param4': 5, 'param5': 9, 'param6': 705, 'param7': 2},
-#     'E': {'param1': -38, 'param2': 4.9, 'param3': 5, 'param4': 5, 'param5': 3.1, 'param6': 257, 'param7': 2},
-# }
-# compressors_torch = {key: {param: torch.tensor(value).to(device) for param, value in params.items()} for key, params
-#                      in compressors.items()}
-#
-#
-# def prediction_to_label(predictions):
-#     p = []
-#     for i in predictions:
-#         if i == 0:
-#             l = 'O'
-#         elif i == 1:
-#             l = 'A'
-#         elif i == 2:
-#             l = 'B'
-#         elif i == 3:
-#             l = 'C'
-#         elif i == 4:
-#             l = 'D'
-#         else:
-#             l = 'E'
-#         p.append(l)
-#     return p
-#
-# predicted_labels = prediction_to_label(all_predictions)
-#
-#
-# def checkFunction(filepath, Compressor):
-#     profile_label = filepath[-5]
-#     audio, fs = sf.read(filepath)
-#     if profile_label != 'O':
-#         parameters = Compressor[profile_label]
-#         original_file = filepath[:-5] + 'O' + filepath[-4:]
-#         oriAudio, _ = sf.read(original_file)
-#         y, my_g, v, ff, xx = compressor(oriAudio, fs, parameters.get('param1'), parameters.get('param2'),
-#                                      parameters.get('param3'), parameters.get('param4'), parameters.get('param5'),
-#                                      parameters.get('param6'), parameters.get('param7'))
-#         f1 = np.square(my_g-1)
-#         f1sum = np.sum(f1)
-#         # f2 = np.square(oriAudio - y)
-#         # f2sum = np.sum(f2)
-#         # f3 = np.std(my_g)
-#     else:
-#         # my_g = np.ones(len(audio))
-#         # f1 = f2 = np.zeros(len(audio))
-#         f1sum = f2sum = 0
-#         # f3 = 1
-#     return f1sum
-#
-#
-# rightFiles = np.concatenate(rightFiles)
-# wrongFiles = np.concatenate(wrongFiles)
-# combined_list = [(path, 'y') for path in rightFiles] + [(path, 'n') for path in wrongFiles]
-# groups = defaultdict(lambda: defaultdict(list))
-#
-# for path, classification in combined_list:
-#     _, file_name = path.rsplit('/', 1)  # Extract the file name
-#     song_index, seg_index, profile = file_name.split('_')[:3]
-#     check_value = checkFunction(path, compressors)
-#     groups[profile][song_index].append((seg_index, path, classification, check_value))
-#
-# for profile, songs in groups.items():
-#     for song_index, paths in songs.items():
-#         sorted_paths = natsorted(paths, key=lambda x: x[0])
-#         groups[profile][song_index] = [(path, classification, check_value)
-#                                        for _, path, classification, check_value in sorted_paths]
-#
-# num_profiles = len(groups)
-# fig, axs = plt.subplots(num_profiles, 1, sharex=True, figsize=(16, 16))
-# # Iterate over profiles and draw point diagrams for each songindex
-# for i, (profile, songs) in enumerate(groups.items()):
-#     axs[i].set_title(f"Profile: {profile}")
-#     for song_index, segments in songs.items():
-#         segments = np.array(segments)
-#         paths, classifications, check_values = np.transpose(segments)
-#         # Set color based on classification
-#         colors = ['red' if i == 'n' else 'blue' for i in classifications]
-#         axs[i].scatter(np.arange(len(check_values)), check_values.astype(float), color=colors)
-#     axs[i].set_xlabel('Seg Index')
-#     axs[i].set_ylabel(r'$sum(|g-1|^2)$')
-# plt.tight_layout()
-# path_1 = '/home/ljx/0130/'
-# name_1 = 'ast_checkFunction_4.png'
-# plt.savefig(path_1 + name_1)
-#
-#
-# def loss_mel(x, hat_x, fs=22050, n_fft=2048, hop_length=512, win_length=2048, window='hann', n_mels=128):
-#     mel_spec1 = librosa.feature.melspectrogram(y=x, sr=fs, n_fft=n_fft, hop_length=hop_length, win_length=win_length,
-#                                                n_mels=n_mels, window=window)
-#     log_mel_spec1 = librosa.power_to_db(mel_spec1, ref=np.max)
-#     mel_spec2 = librosa.feature.melspectrogram(y=hat_x, sr=fs, n_fft=n_fft, hop_length=hop_length, win_length=win_length,
-#                                                n_mels=n_mels, window=window)
-#     log_mel_spec2 = librosa.power_to_db(mel_spec2, ref=np.max)
-#     l1_norm = np.sum(np.abs(log_mel_spec1 - log_mel_spec2))
-#     return l1_norm
-#
-# MSE_loss = []
-# Mel_loss = []
-# for file_path in X_test:
-#     audio, sr = sf.read(file_path)
-#     Index = X_test.index(file_path)
-#     predicted_label = predicted_labels[Index]
-#     # compression inversion
-#     if predicted_label == 'O':
-#         x_hat_tensor = torch.tensor(audio).to(device)
-#     else:
-#         parameters = compressors_torch[predicted_label]
-#         x_hat_tensor, g, v, x2 = decompressor_torch(torch.tensor(audio).to(device), sr, parameters.get('param1'), parameters.get('param2'),
-#                                        parameters.get('param3'), parameters.get('param4'), parameters.get('param5'),
-#                                        parameters.get('param6'), parameters.get('param7'))
-#     # find the real signal
-#     original_audio_path = file_path[:-5] + 'O' + '.wav'
-#     original_audio, _ = sf.read(original_audio_path)
-#     # compute errors
-#     loss_MSE = rmse_torch(torch.tensor(original_audio).to(device), x_hat_tensor)
-#     MSE_loss.append(loss_MSE.numpy())
-#     loss_Mel = loss_mel(original_audio, x_hat_tensor.numpy())
-#     Mel_loss.append(loss_Mel)
-#
-# np.savetxt('ast_MSEloss_4.txt', MSE_loss)
-# np.savetxt("ast_MELloss_4.txt", Mel_loss)
