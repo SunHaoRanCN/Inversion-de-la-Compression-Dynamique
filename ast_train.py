@@ -63,7 +63,7 @@ class AudioDataset(Dataset):
         return mel, type
 
 # Hyperparameters
-seed = 22   # 11 -> MLP, 22 -> KAN
+seed = 22
 set_seed(seed)
 batch_size = 12
 lr = 0.0001
@@ -71,9 +71,8 @@ n_epochs = 3
 norm_param = 0.001
 
 ### Data loading and preprocessing
-audio_folder_path = "/home/hsun/Datasets/LibriSpeech/5profiles"
-train_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_train"
-test_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_test"
+train_folder = ""
+test_folder = ""
 
 def find_paths_labels(folder_path):
     all_files = []
@@ -238,51 +237,6 @@ end = time.time()
 
 training_time_hours = (end - start) / 3600
 time_per_epoch = training_time_hours / (epoch + 1)
-
-### Plotting the learning curve
-# plt.figure(figsize=(12, 6))
-# # Plot Training Loss
-# plt.subplot(2, 2, 1)
-# plt.plot(range(1, len(train_losses) + 1), train_losses, label='Training Loss')
-# plt.xlabel('Epochs')
-# plt.ylabel('Loss')
-# plt.title('Training Loss')
-# # Plot Validation Loss
-# plt.subplot(2, 2, 2)
-# plt.plot(range(1, len(train_losses) + 1), val_losses, label='Validation Loss', color='orange')
-# plt.xlabel('Epochs')
-# plt.ylabel('Loss')
-# plt.title('Validation Loss')
-# # Plot Training Accuracy
-# plt.subplot(2, 2, 3)
-# plt.plot(range(1, len(train_losses) + 1), train_accuracies, label='Training Accuracy', color='green')
-# plt.xlabel('Epochs')
-# plt.ylabel('Accuracy')
-# plt.title('Training Accuracy')
-# # Plot Validation Accuracy
-# plt.subplot(2, 2, 4)
-# plt.plot(range(1, len(train_losses) + 1), val_accuracies, label='Validation Accuracy', color='red')
-# plt.xlabel('Epochs')
-# plt.ylabel('Accuracy')
-# plt.title('Validation Accuracy')
-# plt.tight_layout()
-# plt.savefig("../results/lcurve_LibriSpeech_626_128.png")
-#
-# # Calculate confusion matrix for validation set
-# conf_matrix = confusion_matrix(all_labels, all_predictions)
-# print(conf_matrix)
-# plt.figure(figsize=(8, 6))
-# plt.imshow(conf_matrix, cmap='Blues', interpolation='nearest')
-# plt.title('Confusion Matrix')
-# plt.xlabel('Predicted')
-# plt.ylabel('True')
-# plt.colorbar()
-# plt.savefig('../results/conf_matice_LibriSpeech_626_128.png')
-#
-# score_matrix = classification_report(all_labels, all_predictions, output_dict=True, digits=4)
-# print(score_matrix)
-# df = pd.DataFrame(score_matrix).transpose()
-# df.to_csv('../results/score_LibriSpeech_626_128.csv')
 
 best_val_accuracy = max(val_accuracies)
 best_epoch = val_accuracies.index(best_val_accuracy) + 1
