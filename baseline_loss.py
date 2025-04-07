@@ -3,13 +3,11 @@ import librosa
 import numpy as np
 import soundfile as sf
 import matplotlib.pyplot as plt
-from audio_loss import loss_mse, MelSTFTLoss, loss_SISDR
+from utiles import loss_mse, MelSTFTLoss, loss_SISDR
 import pandas as pd
 
-ref_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_noised_small"
-restored_folder = "/home/hsun/Datasets/LibriSpeech/5profiles_test_reg_noised_small"
-# restored_folder = "/home/hsun/Datasets/LibriSpeech/30profiles_RMS_test_class"
-# restored_folder = "/home/hsun/Projects/de-limiter/De-limiter/output_musdb"
+ref_folder = " "  # folder for all raw data chunks
+restored_folder = " "
 
 Mel = MelSTFTLoss()
 
@@ -58,26 +56,8 @@ std_mel = np.std(mel_values)
 mean_sisdr = np.mean(sisdr_values)
 std_sisdr = np.std(sisdr_values)
 
-# plt.figure()
-# box_data = [mse_values, mel_values, sisdr_values]
-# plt.boxplot(box_data,
-#             labels=['MSE', 'Mel', 'SISDR'],
-#             showfliers=False)
-# plt.ylabel('Loss Value')
-# plt.show(block=True)
-
 print(f'MSE Loss: {mean_mse}, Mel Loss: {mean_mel}, SISDR: {mean_sisdr}, \n std MSE: {std_mse}, std Mel: {std_mel}, std SISDR: {std_sisdr}')
-
-# loss_tab = {
-#     "MSE": [],
-#     "Mel": [],
-#     "SI-SDR": []
-# }
-#
-# loss_tab["MSE"].append(np.array(mse_values).T)
-# loss_tab["Mel"].append(np.array(mel_values).T)
-# loss_tab["SI-SDR"].append(np.array(sisdr_values).T)
 
 box_data = [mse_values, mel_values, sisdr_values]
 df = pd.DataFrame(np.array(box_data).T)
-df.to_excel("../results/loss_LibriSpeech_5_noised_small.xlsx", index=False)
+df.to_excel("../results/loss.xlsx", index=False)
