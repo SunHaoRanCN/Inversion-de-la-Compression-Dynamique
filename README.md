@@ -11,7 +11,16 @@ Approche Hybride pour l'Inversion de la Compression Dynamique en Traitement Audi
 ## Affiliations
 Laboratoire IBISC (EA 4526), Univ. Evry Paris-Saclay, Évry-Courcouronnes, France
 
-## Usag
+## Usage
+Before training, please make sure your dataset is stored as:
+
+├── dir/
+│   ├── all
+│   └── train
+│   └── test
+
+where the "all" folder should contain all the original chunks.
+
 To train the AST model, run  
 
 ```python3 classification.py```  
