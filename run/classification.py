@@ -1,19 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from ..data import get_2D_dataset
-import os
-from ..models import ASTModel, decompressor
+from data.AudioDataset import get_2D_dataset
+from models.DECOMP import decompressor
+from models.ast_model import ASTModel
 import time
 import auraloss
 import pickle
-from torchinfo import summary
-import librosa
 import soundfile as sf
-from ..utiles import SNRScheduler, set_seed, loss_mse, MelSTFTLoss, loss_SISDR
+from utiles.utile import set_seed
 
 
 def prediction_to_label(predictions):
@@ -36,46 +33,37 @@ def normSignal_np(x):
 
 
 # Hyperparameters
-seed = 11   # 11 -> MLP, 22 -> KAN
+seed = 11
 set_seed(seed)
+input_size = (431, 64)  # input size for the 2D feature (f_dim, t_dim)
 batch_size = 12
 lr = 0.0001
 n_epochs = 200
 norm_param = 0.01
+do_eval = False
 
 ### Data loading and preprocessing
-ref_folder = " "
 train_folder = " "
 test_folder = " "
-eval_folder = test_folder
+eval_folder = " "
 output_folder = " "
 
-train_dataset = get_2D_dataset(train_folder, 
-                               snr_scheduler=snr_scheduler, 
-                               resample=False, target_fs=16000, 
-                               aug=True)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+train_dataset = get_2D_dataset(train_folder, input_size)
+train_loader = DataLoader(train_dataset,
+                          batch_size=batch_size,
+                          shuffle=True)
 
-test_dataset = get_2D_dataset(test_folder,
-                              snr_scheduler=snr_scheduler, 
-                              resample=False, target_fs=16000,
-                              aug=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+test_dataset = get_2D_dataset(test_folder, input_size)
+test_loader = DataLoader(test_dataset,
+                         batch_size=batch_size,
+                         shuffle=False)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ASTModel(label_dim=6, input_tdim=431, input_fdim=64, imagenet_pretrain=True, audioset_pretrain=False)
+model = ASTModel(label_dim=31, input_tdim=input_size[0], input_fdim=input_size[1], imagenet_pretrain=True, audioset_pretrain=False)
 model = nn.DataParallel(model)
 model = model.to(device)
-summary(model, estimate_size = (batch_size, 1, 220500), device = device)
 
-# compressors = pickle.load(open(r"30profiles_RMS.pkl", 'rb'))
-compressors = {
-    'A': {'param1': -32, 'param2': 3, 'param3': 5, 'param4': 5, 'param5': 13, 'param6': 435, 'param7': 2},
-    'B': {'param1': -19.9, 'param2': 1.8, 'param3': 5, 'param4': 5, 'param5': 11, 'param6': 49, 'param7': 2},
-    'C': {'param1': -24.4, 'param2': 3.2, 'param3': 5, 'param4': 5, 'param5': 5.8, 'param6': 112, 'param7': 2},
-    'D': {'param1': -28.3, 'param2': 7.3, 'param3': 5, 'param4': 5, 'param5': 9, 'param6': 705, 'param7': 2},
-    'E': {'param1': -38, 'param2': 4.9, 'param3': 5, 'param4': 5, 'param5': 3.1, 'param6': 257, 'param7': 2},
-}
+compressors = pickle.load(open(r"30profiles.pkl", 'rb'))
 compressors_torch = {key: {param: torch.tensor(value).to(device) for param, value in params.items()} for key, params
                      in compressors.items()}
 
@@ -117,7 +105,7 @@ for epoch in range(n_epochs):
     all_labels_train = []
     all_predictions_train = []
 
-    for real_signals, target_signals, inputs, labels, audio_name in train_loader:
+    for real_signals, target_signals, inputs, labels, audio_name, sr in train_loader:
         inputs = inputs.to(torch.float32)
         inputs, labels = inputs.to(device), labels.to(device)
         outputs = model(inputs)
@@ -149,7 +137,7 @@ for epoch in range(n_epochs):
     count = 0
 
     with torch.no_grad():
-        for real_signals, target_signals, inputs, labels, audio_name in test_loader:
+        for real_signals, target_signals, inputs, labels, audio_name, sr in test_loader:
             inputs = inputs.to(torch.float32)
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
@@ -169,7 +157,7 @@ for epoch in range(n_epochs):
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
 
-    print(f'Epoch {epoch + 1:03d} | Current lr: {learning_rate:.7f} | Current SNR: {current_snr:.1f} dB \n Train Acc: {train_accuracy:.4f} | Val Acc: {val_accuracy:.4f}')
+    print(f'Epoch {epoch + 1:03d} | Current lr: {learning_rate:.7f} \n Train Acc: {train_accuracy:.4f} | Val Acc: {val_accuracy:.4f}')
 
     if val_loss <= min_loss_val:
         min_loss_val = val_loss
@@ -177,18 +165,18 @@ for epoch in range(n_epochs):
         torch.save(best_model, 'pretrained_AST.pt')
 
     # Early stopping check
-    if epoch < 30:
-        continue
-    else:
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            patience_counter = 0
-        else:
-            patience_counter += 1
-
-    if patience_counter >= patience:
-        print(f'Early stopping after {epoch + 1} epochs without improvement.')
-        break
+    # if epoch < 30:
+    #     continue
+    # else:
+    #     if val_loss < best_val_loss:
+    #         best_val_loss = val_loss
+    #         patience_counter = 0
+    #     else:
+    #         patience_counter += 1
+    #
+    # if patience_counter >= patience:
+    #     print(f'Early stopping after {epoch + 1} epochs without improvement.')
+    #     break
 
 torch.cuda.synchronize()
 end = time.time()
@@ -203,44 +191,45 @@ if epoch != 0:
 # Eval #
 ########
 
-model.load_state_dict(torch.load('pretrained_AST.pt', weights_only=True))
+if do_eval:
+    model.load_state_dict(torch.load('pretrained_AST.pt', weights_only=True))
 
-torch.cuda.synchronize()
-tic = time.time()
+    torch.cuda.synchronize()
+    tic = time.time()
 
-model.eval()
+    model.eval()
 
-count = 0
+    count = 0
 
-with torch.no_grad():
-    for real_signals, target_signals, inputs, labels, audio_names in test_loader:
-        inputs = inputs.to(torch.float32)
-        inputs, labels = inputs.to(device), labels.to(device)
-        outputs = model(inputs)
+    with torch.no_grad():
+        for real_signals, target_signals, inputs, labels, audio_names, sr in test_loader:
+            inputs = inputs.to(torch.float32)
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
 
-        _, predicted = torch.max(outputs.data, 1)
-        predicted_labels = prediction_to_label(predicted)
+            _, predicted = torch.max(outputs.data, 1)
+            predicted_labels = prediction_to_label(predicted)
 
-        estimated_signals = []
-        for i in range(target_signals.size(0)):
-            target_signal = target_signals[i]
-            real_signal = real_signals[i]
-            real_label = labels[i]
-            label = predicted_labels[i]
-            audio_name = audio_names[i]
+            estimated_signals = []
+            for i in range(target_signals.size(0)):
+                target_signal = target_signals[i]
+                real_signal = real_signals[i]
+                real_label = labels[i]
+                label = predicted_labels[i]
+                audio_name = audio_names[i]
 
-            if label == '0':
-                estimated_signal = target_signal
-                # loss_SISDR = SI_SDR(normSignal_np(estimated_signal.cpu().numpy()), normSignal_np(real_signal.cpu().numpy()))
-            else:
-                target_signal = target_signal.cpu().numpy()
-                parameters = compressors[label]
-                estimated_signal = decompressor(target_signal, 44100, parameters.get('param1'), parameters.get('param2'), parameters.get('param3'),
-                                                          parameters.get('param4'), parameters.get('param5'), parameters.get('param6'), parameters.get('param7'))
+                if label == '0':
+                    estimated_signal = target_signal
+                    # loss_SISDR = SI_SDR(normSignal_np(estimated_signal.cpu().numpy()), normSignal_np(real_signal.cpu().numpy()))
+                else:
+                    target_signal = target_signal.cpu().numpy()
+                    parameters = compressors[label]
+                    estimated_signal = decompressor(target_signal, sr, parameters.get('param1'), parameters.get('param2'), parameters.get('param3'),
+                                                              parameters.get('param4'), parameters.get('param5'), parameters.get('param6'), parameters.get('param7'))
 
-            sf.write(output_folder + "/" + audio_name, estimated_signal, 44100)
+                sf.write(output_folder + "/" + audio_name, estimated_signal, sr)
 
-            count += 1
-            print(count)
+                count += 1
+                print(count)
 
-        torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
