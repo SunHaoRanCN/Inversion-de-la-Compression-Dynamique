@@ -23,24 +23,32 @@ Before training, please make sure your dataset is stored as:
 
 where the "all" folder should contain all the original chunks.
 
-To train the AST model, run  
+To generate an audio dataset, run
 
 ```
-python3 classification.py
+python3 data/Dataset.py
+```
+
+It will generate three folders: all, train, and test, in the folder you specified.
+
+To train the AST model, run:
+
+```
+python3 run/classification.py
 ```  
 
-To train the MEE model for DRC parameter estimation, run  
+To train the MEE model for DRC parameter estimation, run:
 
 ```
-python3 regression.py
+python3 run/regression.py
 ``` 
 
 With Evaluation, the DRC inversion will be completed and the estimated original signals will be stored in the output_path.  
 
-To compute the MSE, Mel and SISDR loss, run  
+To compute the MSE, Mel and SISDR loss, run:
 
 ```
-python3 compute_loss.py
+python3 run/compute_loss.py
 ```  
 
 ## Ref.
